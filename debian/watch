@@ -1,0 +1,3 @@
+version=3
+opts="filenamemangle=s/.*\/v(\d)\.(\d).*/mridefacer-$1.$2\.tar\.gz/" \
+  http://github.com/hanke/mridefacer/tags .*archive/v(\d[\d.]+).tar.gz

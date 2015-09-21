@@ -1,0 +1,23 @@
+Source: mridefacer
+Maintainer: NeuroDebian Team <team@neuro.debian.net>
+Uploaders: Michael Hanke <mih@debian.org>
+Section: science
+Priority: optional
+Build-Depends: debhelper (>= 9),
+               help2man
+Standards-Version: 3.9.6
+Homepage: https://github.com/hanke/mridefacer
+
+Package: mridefacer
+Architecture: all
+Depends: ${misc:Depends},
+         fsl-5.0-core | fsl-core
+Description: de-identification of MRI data
+ This tool creates a de-face mask for volumetric images by aligning a template
+ mask to the input. Such a mask can be used to remove image data from the
+ vicinity of the facial surface, the auricles, and teeth in order to prevent a
+ possible identification of a person based on these features.  mrideface can
+ process individual or series of images.  In the latter case, the computed
+ transformation between template image and input image will be updated
+ incrementally for the next image in the series. This feature is most suitable
+ for processing images that have been recorded in temporal succession.
