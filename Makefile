@@ -1,19 +1,19 @@
-DESTDIR := /usr/local
+PREFIX ?= /usr/local
 
 all:
 
 install: man/mridefacer.1
-	mkdir -p $(DESTDIR)/share/man/man1
-	mkdir -p $(DESTDIR)/share/mridefacer
-	mkdir -p $(DESTDIR)/bin
-	install -t $(DESTDIR)/bin mridefacer
-	install -m 644 man/mridefacer.1 $(DESTDIR)/share/man/man1
-	install -m 644 -t $(DESTDIR)/share/mridefacer data/*
+	mkdir -p $(DESTDIR)$(PREFIX)/share/man/man1
+	mkdir -p $(DESTDIR)$(PREFIX)/share/mridefacer
+	mkdir -p $(DESTDIR)$(PREFIX)/bin
+	install -t $(DESTDIR)$(PREFIX)/bin mridefacer
+	install -m 644 man/mridefacer.1 $(DESTDIR)$(PREFIX)/share/man/man1
+	install -m 644 -t $(DESTDIR)$(PREFIX)/share/mridefacer data/*
 
 uninstall:
-	rm -f $(DESTDIR)/bin/mridefacer
-	rm -fr $(DESTDIR)/share/mridefacer
-	rm -f $(DESTDIR)/share/man/man1/mridefacer.1*
+	rm -f $(DESTDIR)$(PREFIX)/bin/mridefacer
+	rm -fr $(DESTDIR)$(PREFIX)/share/mridefacer
+	rm -f $(DESTDIR)$(PREFIX)/share/man/man1/mridefacer.1*
 
 README.md:
 	echo '# mridefacer\nFrom the manpage:\n````\n' > README.md
