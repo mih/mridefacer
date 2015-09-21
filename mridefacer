@@ -80,7 +80,7 @@ Options:
   Print short description, usage summary and option list.
 
 --no-colored
-  If set, backport-dsc won't colorize its status and error messages.
+  If set, mridefacer won't colorize its status and error messages.
 
 --outdir
   If set, output files will be put into this directory. By default,
