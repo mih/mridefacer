@@ -22,7 +22,8 @@ README.md:
 
 man/mridefacer.1:
 	mkdir -p man
-	help2man --help-option="--verbose-help" --no-info ./mridefacer > $@
+	help2man --help-option="--verbose-help" --no-info ./mridefacer \
+		--name "deidentification for MRI data" > $@
 
 clean:
 	rm -rf man
