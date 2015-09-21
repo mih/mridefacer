@@ -1,17 +1,193 @@
+#!/bin/bash
+
+# play save
+set -e
+
+# version of this script
+mridefacer_version=0.1
+
+############
+# Defaults #
+############
+
 # where is the de-face mask and template
-datadir=${DEFACE_3DMRI_DATA_DIR:-"$(pwd)/gumpdata/data/deface"}
+md_datadir=${MRIDEFACER_DATA_DIR:-"$(dirname $0)/data"}
+# produce fancy colored output
+md_color_output=1
+# enables additional status message if set to true
+md_verbose=0
+# output directory, use same as input when empty
+md_outdir=''
+# flag whether to output directory, use same as input when empty
+md_apply2orig=0
 
-anon_txt () {
-  grep -i -v study < $1 | grep -iv subject | grep -iv series > $2
+
+print_version()
+{
+cat << EOT
+mridefacer $mridefacer_version
+
+Copyright (C) 2013-2015 Michael Hanke <michael.hanke@gmail.com>
+
+Release under the MIT License.
+
+Written by Michael Hanke
+
+EOT
 }
 
-export_defaced () {
-  # $1 - basename
-  # $2 - flavor -> $1_$2
-  # $3 - destination
-  $FSLDIR/bin/fslmaths ${1}_${2} -mul ${1}_defacemask $3 -odt input
-  $FSLDIR/bin/imcp ${1}_defacemask ${3}_defacemask
+
+print_short_description()
+{
+cat << EOT
+Helper to aid de-identification of MRI images (3D or 4D).
+
+A de-face mask image will be created for each input image, by aligning
+template mask to the input. Optionally, de-face masks can be applied
+to the input images to either replace the original image, or create
+modified copies in a specified output directory.
+
+This tool can process single or series of images. In the latter case,
+the computed transformation between template image and input image will
+be updated incrementally for the next image in the series. This feature
+is most suitable for processing images that have been recorded in
+temporal succession.
+
+Note that any output images will comform the FSL's radiological image
+orientation.
+
+EOT
 }
+
+
+print_help()
+{
+cat << EOT
+
+Usage:  mridefacer [OPTIONS] <imagefile> [<imagefile> [...]]
+
+
+Options:
+
+--apply
+  If this flag is set, the defacing is applied to the input images.
+  By default, defacing mask images are created only. If --outdir is
+  not provided, the actual input images will be replaced by defaced
+  versions. In this case, the resulting images will be in FSL's
+  standard radiological orientation.
+
+-h, --help
+  Print short description, usage summary and option list.
+
+--no-colored
+  If set, backport-dsc won't colorize its status and error messages.
+
+--outdir
+  If set, output files will be put into this directory. By default,
+  output files are placed in the same directory as the respective input
+  files.
+
+--verbose
+  Enable additional status messages.
+
+--verbose-help
+  Print all available help.
+
+--version
+  Print version information and exit.
+
+EOT
+}
+
+
+print_additional_description()
+{
+cat << EOT
+
+Examples:
+
+mridefacer ADMME
+  Deface a single image
+
+Environment:
+
+mridefacer requires FSL and the environment variable FSLDIR needs to be set
+accordingly. mridefacer acknowledges MRIDEFACER_DATA_DIR to determine the
+location of the required MRI template images.
+
+
+Report bugs to <michael.hanke@gmail.com>.
+
+EOT
+}
+
+
+################################
+# Commandline options handling #
+################################
+
+# Parse commandline options (taken from the getopt examples from the Debian util-linux package)
+# Note that we use `"$@"' to let each command-line parameter expand to a
+# separate word. The quotes around `$@' are essential!
+# We need CLOPTS as the `eval set --' would nuke the return value of getopt.
+CLOPTS=`getopt -o h --long help,verbose-help,version,no-color,verbose,outdir:,apply -n 'mridefacer' -- "$@"`
+
+if [ $? != 0 ] ; then
+  echo "Terminating..." >&2
+  exit 1
+fi
+
+# Note the quotes around `$CLOPTS': they are essential!
+eval set -- "$CLOPTS"
+
+while true ; do
+  case "$1" in
+	  --no-color) md_color_output=0; shift;;
+	  --verbose) md_verbose=1; shift;;
+	  --apply) md_apply2orig=1; shift;;
+	  -h|--help) print_short_description; print_help; exit 0;;
+	  --verbose-help) print_short_description; print_help; print_additional_description; exit 0;;
+	  --version) print_version; exit 0;;
+	  --outdir) md_outdir="$2"; shift; shift;;
+	  --) shift ; break ;;
+	  *) echo "Internal error! ($1)"; exit 1;;
+  esac
+done
+
+# colorful output requested?
+if [ "$md_color_output" = 1 ]; then
+  black='\e[0;30m'; Black='\e[1;30m'
+  red='\e[0;31m'; Red='\e[1;31m'
+  green='\e[0;32m'; Green='\e[1;32m'
+  yellow='\e[0;33m'; Yellow='\e[1;33m'
+  blue='\e[0;34m'; Blue='\e[1;34m'
+  cyan='\e[0;36m'; Cyan='\e[1;36m'
+  white='\e[0;37m'; White='\e[1;37m'
+  NC='\e[0m' #no color
+else
+  black=''; Black=''
+  red=''; Red=''
+  green=''; Green=''
+  yellow=''; Yellow=''
+  blue=''; Blue=''
+  cyan=''; Cyan=''
+  white=''; White=''
+  NC='' #no color
+fi
+
+[ -z "$FSLDIR" ] && printf "${Red}FSLDIR environment variable not set${NC}\n" && exit 1
+
+# play safer
+set -u
+
+if [ $# -lt 1 ]; then
+  printf "${Red}Error: This command needs at least one positional argument.\n${NC}"
+  exit 1
+fi
+
+#
+# End of boilerplate
+#
 
 getdeface () {
   # image to deface
@@ -33,7 +209,9 @@ getdeface () {
   if [[ $($FSLDIR/bin/fslinfo ${out_base}_instd | grep '^dim4' | sed -e 's/.* //g') -gt 1 ]]; then
     #echo "Use mean volume as reference for de-facing"
     #$FSLDIR/bin/fslmaths ${out_base}_instd -Tmean ${out_base}_meanvol
-    echo "Use first volume as reference for de-facing"
+    if [ "$md_verbose" = 1 ]; then
+      printf "${Green}Use first volume as reference for de-facing\n${NC}"
+    fi
     $FSLDIR/bin/fslroi ${out_base}_instd ${out_base}_meanvol 0 1
   else
     $FSLDIR/bin/imln ${out_base}_instd ${out_base}_meanvol
@@ -46,7 +224,9 @@ getdeface () {
   if [[ $(echo "$(fslinfo ${out_base}_meanvol | grep '^pixdim' | head -n3 | sed -e 's/.* //g' | numbound) > 2.1" | bc) == 1 ]]; then
     imln ${out_base}_brain ${out_base}_subsamp
   else
-    echo "Subsample for de-facing"
+    if [ "$md_verbose" = 1 ]; then
+      printf "${Green}Sub-sample high-resolution image for alignment\n${NC}"
+    fi
     $FSLDIR/bin/fslmaths ${out_base}_brain -subsamp2 ${out_base}_subsamp
   fi
 
@@ -55,14 +235,19 @@ getdeface () {
   opts="-bins 256 -cost corratio -searchrx -$sr $sr -searchry -$sr $sr -searchrz -$sr $sr -dof 12"
 
   if [ ! -z "$init_xfm" ]; then
-    echo "Use given init xfm"
+    if [ "$md_verbose" = 1 ]; then
+      printf "${green}Use provided transformation matrix for initialization\n${NC}"
+    fi
     opts="-init $init_xfm $opts"
   fi
 
   # align template to input image
   if [ $update_xfm = 1 ]; then
-    $FSLDIR/bin/flirt -in $datadir/head_tmpl_brain \
-      -inweight $datadir/head_tmpl_weights -ref ${out_base}_subsamp \
+    if [ "$md_verbose" = 1 ]; then
+      printf "${Green}Align input for defacing\n${NC}"
+    fi
+    $FSLDIR/bin/flirt -in $md_datadir/head_tmpl_brain \
+      -inweight $md_datadir/head_tmpl_weights -ref ${out_base}_subsamp \
       -omat ${out_base}.mat -out ${out_base}_alignedtmpl $opts
     popts="-init ${out_base}.mat"
   else
@@ -75,7 +260,7 @@ getdeface () {
   fi
 
   # project de-face mask onto reference
-  $FSLDIR/bin/flirt -in $datadir/face_teeth_ear_mask -applyxfm \
+  $FSLDIR/bin/flirt -in $md_datadir/face_teeth_ear_mask -applyxfm \
      $popts -out ${out_base}_defacemask_aligned -interp trilinear \
       -ref ${out_base}_meanvol
 
@@ -83,3 +268,36 @@ getdeface () {
   $FSLDIR/bin/fslmaths ${out_base}_defacemask_aligned -thr 0.5 -bin \
      ${out_base}_defacemask -odt char
 }
+
+
+#
+# main
+#
+
+# prep tmp dir
+wdir=`mktemp -d --tmpdir mridefacer.XXXXXXXXXXX`
+if [ "$md_verbose" = 1 ]; then
+  printf "${green}Using temporary directory '$wdir'\n${NC}"
+fi
+# take care of clean-up on exit
+trap "rm -rf $wdir" EXIT
+
+
+count=0
+last_xfm=''
+for infile in "$@"; do
+  getdeface "$infile" "$last_xfm" "$wdir/out_$count" 1 90 0.5
+  last_xfm="`ls -1 "$wdir/out_${count}.mat" 2>/dev/null`" || true
+  outbase="`$FSLDIR/bin/remove_ext "$infile"`"
+  if [ ! -z "$md_outdir" ]; then
+      outbase="$md_outdir/`basename "$outbase"`"
+  fi
+  $FSLDIR/bin/imcp "$wdir/out_${count}_defacemask" "$outbase"_defacemask
+  # make explicit test for success, as imcp doesn't
+  [ "`$FSLDIR/bin/imtest "$outbase"_defacemask`" = "1" ]
+
+  if [ "$md_apply2orig" = 1 ]; then
+    $FSLDIR/bin/fslmaths "${infile}" -mul "$wdir/out_${count}_defacemask" "${outbase}" -odt input
+  fi
+  count=$((count + 1))
+done
