@@ -11,7 +11,7 @@ mridefacer_version=0.1
 ############
 
 # where is the de-face mask and template
-md_datadir=${MRIDEFACER_DATA_DIR:-"$(dirname $0)/data"}
+md_datadir=${MRIDEFACER_DATA_DIR:-"$(dirname $0)/../share/mridefacer"}
 # produce fancy colored output
 md_color_output=1
 # enables additional status message if set to true
