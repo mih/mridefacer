@@ -7,6 +7,8 @@ Build-Depends: debhelper (>= 9),
                help2man
 Standards-Version: 3.9.6
 Homepage: https://github.com/hanke/mridefacer
+Vcs-Browser: http://github.com/hanke/mridefacer
+Vcs-Git: git://github.com/hanke/mridefacer.git -b debian
 
 Package: mridefacer
 Architecture: all
