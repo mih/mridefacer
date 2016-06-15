@@ -13,6 +13,7 @@ Vcs-Git: git://github.com/hanke/mridefacer.git -b debian
 Package: mridefacer
 Architecture: all
 Depends: ${misc:Depends},
+         num-utils,
          fsl-5.0-core | fsl-core
 Description: de-identification of MRI data
  This tool creates a de-face mask for volumetric images by aligning a template
