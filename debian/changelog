@@ -1,4 +1,12 @@
-mridefacer (0.1-1) UNRELEASED; urgency=low
+mridefacer (0.1-2) UNRELEASED; urgency=medium
+
+  * debian/control
+    - added Vcs- fields
+    - added num-utils into Depends -- thanks Emanuele!
+
+ --
+
+mridefacer (0.1-1) neurodebian; urgency=low
 
   * Initial release (Closes: #).
 
