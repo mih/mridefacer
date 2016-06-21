@@ -4,7 +4,7 @@
 set -e
 
 # version of this script
-mridefacer_version=0.1
+mridefacer_version=0.2
 
 ############
 # Defaults #
@@ -27,7 +27,7 @@ print_version()
 cat << EOT
 mridefacer $mridefacer_version
 
-Copyright (C) 2013-2015 Michael Hanke <michael.hanke@gmail.com>
+Copyright (C) 2013-2016 Michael Hanke <michael.hanke@gmail.com>
 
 Release under the MIT License.
 
