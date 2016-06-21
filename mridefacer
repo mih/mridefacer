@@ -219,6 +219,8 @@ getdeface () {
 
   # brain extract
   $FSLDIR/bin/bet ${out_base}_meanvol ${out_base}_brain -R -f "${bf}"
+  # protect again failing BET with unreliable exit code
+  [ "`$FSLDIR/bin/imtest "${out_base}_brain"`" = "1" ]
 
   # subsample highres stuff -- doesn't gain much beyond 1mm resolution
   if [[ $(echo "$(fslinfo ${out_base}_meanvol | grep '^pixdim' | head -n3 | sed -e 's/.* //g' | numbound) > 2.1" | bc) == 1 ]]; then
@@ -297,7 +299,9 @@ for infile in "$@"; do
   [ "`$FSLDIR/bin/imtest "$outbase"_defacemask`" = "1" ]
 
   if [ "$md_apply2orig" = 1 ]; then
-    $FSLDIR/bin/fslmaths "${infile}" -mul "$wdir/out_${count}_defacemask" "${outbase}" -odt input
+    $FSLDIR/bin/fslmaths "${infile}" -mul "$wdir/out_${count}_defacemask" "$wdir/out_${count}_defaced" -odt input
+    $FSLDIR/bin/immv "$wdir/out_${count}_defaced" "${outbase}"
   fi
   count=$((count + 1))
 done
+
