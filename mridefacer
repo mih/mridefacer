@@ -205,6 +205,9 @@ getdeface () {
   bf="${6:-0.5}"
 
   $FSLDIR/bin/fslreorient2std "${target}" ${out_base}_instd
+  # do again to get the matrix
+  $FSLDIR/bin/fslreorient2std "${target}" > ${out_base}_instd.mat
+  $FSLDIR/bin/convert_xfm -omat ${out_base}_fromstd.mat -inverse ${out_base}_instd.mat
 
   if [[ $($FSLDIR/bin/fslinfo ${out_base}_instd | grep '^dim4' | sed -e 's/.* //g') -gt 1 ]]; then
     #echo "Use mean volume as reference for de-facing"
@@ -261,14 +264,21 @@ getdeface () {
     fi
   fi
 
-  # project de-face mask onto reference
+  # project de-face mask onto std reference
   $FSLDIR/bin/flirt -in $md_datadir/face_teeth_ear_mask -applyxfm \
-     $popts -out ${out_base}_defacemask_aligned -interp trilinear \
+     $popts -out ${out_base}_defacemask_aligned_std -interp trilinear \
       -ref ${out_base}_meanvol
+
+  # project de-face mask onto reference
+  $FSLDIR/bin/flirt -in ${out_base}_defacemask_aligned_std -applyxfm \
+     -init ${out_base}_fromstd.mat -out ${out_base}_defacemask_aligned \
+     -interp trilinear -ref "${target}"
 
   # threshold de-face mask and store as output
   $FSLDIR/bin/fslmaths ${out_base}_defacemask_aligned -thr 0.5 -bin \
      ${out_base}_defacemask -odt char
+
+  
 }
 
 
@@ -299,7 +309,7 @@ for infile in "$@"; do
   [ "`$FSLDIR/bin/imtest "$outbase"_defacemask`" = "1" ]
 
   if [ "$md_apply2orig" = 1 ]; then
-    $FSLDIR/bin/fslmaths "${infile}" -mul "$wdir/out_${count}_defacemask" "$wdir/out_${count}_defaced" -odt input
+    $FSLDIR/bin/fslmaths "$infile" -mul "$wdir/out_${count}_defacemask" "$wdir/out_${count}_defaced" -odt input
     $FSLDIR/bin/immv "$wdir/out_${count}_defaced" "${outbase}"
   fi
   count=$((count + 1))
