@@ -4,7 +4,7 @@
 set -e
 
 # version of this script
-mridefacer_version=0.2
+mridefacer_version=0.2.1
 
 ############
 # Defaults #
@@ -20,6 +20,8 @@ md_verbose=0
 md_outdir=''
 # flag whether to output directory, use same as input when empty
 md_apply2orig=0
+# flag whether to output directory, and place aside the original
+md_apply=1
 
 
 print_version()
@@ -76,6 +78,11 @@ Options:
   versions. In this case, the resulting images will be in FSL's
   standard radiological orientation.
 
+--apply-only
+  If this flag is set, the defacing is applied to the input images,
+  and stored into a new file (with _defaced suffix) instead of replacing
+  original one.
+
 -h, --help
   Print short description, usage summary and option list.
 
@@ -130,7 +137,7 @@ EOT
 # Note that we use `"$@"' to let each command-line parameter expand to a
 # separate word. The quotes around `$@' are essential!
 # We need CLOPTS as the `eval set --' would nuke the return value of getopt.
-CLOPTS=`getopt -o h --long help,verbose-help,version,no-color,verbose,outdir:,apply -n 'mridefacer' -- "$@"`
+CLOPTS=`getopt -o h --long help,verbose-help,version,no-color,verbose,outdir:,apply,apply-only -n 'mridefacer' -- "$@"`
 
 if [ $? != 0 ] ; then
   echo "Terminating..." >&2
@@ -145,6 +152,7 @@ while true ; do
 	  --no-color) md_color_output=0; shift;;
 	  --verbose) md_verbose=1; shift;;
 	  --apply) md_apply2orig=1; shift;;
+	  --apply-only) md_apply=1; shift;;
 	  -h|--help) print_short_description; print_help; exit 0;;
 	  --verbose-help) print_short_description; print_help; print_additional_description; exit 0;;
 	  --version) print_version; exit 0;;
@@ -278,7 +286,7 @@ getdeface () {
   $FSLDIR/bin/fslmaths ${out_base}_defacemask_aligned -thr 0.5 -bin \
      ${out_base}_defacemask -odt char
 
-  
+
 }
 
 
@@ -308,9 +316,14 @@ for infile in "$@"; do
   # make explicit test for success, as imcp doesn't
   [ "`$FSLDIR/bin/imtest "$outbase"_defacemask`" = "1" ]
 
-  if [ "$md_apply2orig" = 1 ]; then
+  if [ "$md_apply2orig" = 1 ] || [ "$md_apply" = 1 ]; then
     $FSLDIR/bin/fslmaths "$infile" -mul "$wdir/out_${count}_defacemask" "$wdir/out_${count}_defaced" -odt input
-    $FSLDIR/bin/immv "$wdir/out_${count}_defaced" "${outbase}"
+    if [ "$md_apply2orig" = 1 ]; then
+        outsuffix=''
+    else
+        outsuffix='_defaced'
+    fi
+    $FSLDIR/bin/immv "$wdir/out_${count}_defaced" "${outbase}${outsuffix}";
   fi
   count=$((count + 1))
 done
