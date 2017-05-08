@@ -6,7 +6,7 @@
 set -e
 
 # version of this script
-mridefacer_version=0.2.1
+mridefacer_version=0.2.2
 
 ############
 # Defaults #
@@ -22,8 +22,12 @@ md_verbose=0
 md_outdir=''
 # flag whether to output directory, use same as input when empty
 md_apply2orig=0
+# flag whether to keep original file if --apply
+md_keep_orig=0
 # flag whether to output directory, and place aside the original
 md_apply=1
+# flag either to do 'annex' treatment of the original and produced files
+md_annex=0
 
 
 print_version()
@@ -85,6 +89,16 @@ Options:
   and stored into a new file (with _defaced suffix) instead of replacing
   original one.
 
+--keep-orig
+  If this flag is set (in effect only if --apply), original image will be
+  stored with _orig suffix.
+
+--annex
+  If this flag is set, it will add all produced niftis to git annex, and
+  annotate original anatomical with metadata
+    distribution-restrictions=sensitive (datalad convention)
+  to make it easy to automate non-redistribution of these materials.
+
 -h, --help
   Print short description, usage summary and option list.
 
@@ -139,7 +153,7 @@ EOT
 # Note that we use `"$@"' to let each command-line parameter expand to a
 # separate word. The quotes around `$@' are essential!
 # We need CLOPTS as the `eval set --' would nuke the return value of getopt.
-CLOPTS=`getopt -o h --long help,verbose-help,version,no-color,verbose,outdir:,apply,apply-only -n 'mridefacer' -- "$@"`
+CLOPTS=`getopt -o h --long help,verbose-help,version,no-color,verbose,outdir:,apply,apply-only,keep-orig,annex -n 'mridefacer' -- "$@"`
 
 if [ $? != 0 ] ; then
   echo "Terminating..." >&2
@@ -153,8 +167,10 @@ while true ; do
   case "$1" in
 	  --no-color) md_color_output=0; shift;;
 	  --verbose) md_verbose=1; shift;;
+	  --annex) md_annex=1; shift;;
 	  --apply) md_apply2orig=1; shift;;
 	  --apply-only) md_apply=1; shift;;
+	  --keep-orig) md_keep_orig=1; shift;;
 	  -h|--help) print_short_description; print_help; exit 0;;
 	  --verbose-help) print_short_description; print_help; print_additional_description; exit 0;;
 	  --version) print_version; exit 0;;
@@ -334,6 +350,28 @@ trap "rm -rf $wdir" EXIT
 count=0
 last_xfm=''
 for infile in "$@"; do
+  infile_dir=$(dirname "$infile")
+  under_annex=0
+  if [ "$md_annex" = 1 ]; then
+    ( cd "$infile_dir" && git annex info --fast; )  >/dev/null 2>&1 && under_annex=1 || {
+      printf "${red}File $infile is not under annex repository, no annex treatments${NC}\n"
+    }
+  fi
+
+  [ $under_annex = 0 ] || (
+    cd "$infile_dir"
+    if git annex info --fast "$(basename $infile)" >/dev/null 2>&1; then
+      existing_restrictions=`git annex metadata -g distribution-restrictions "$(basename $infile)"`
+      if [ -z "$existing_restrictions" ]; then
+        git annex metadata -s distribution-restrictions=sensitive "$infile" >/dev/null
+      else
+        printf "${yellow}File $infile already has restrictions set to '$existing_restrictions'. Not adding new${NC}\n"
+      fi
+    else
+      printf "\n{red}File $infile is under annex but not annexed. Not enhancing its metadata${NC}\n"
+    fi
+  )
+
   getdeface "$infile" "$last_xfm" "$wdir/out_$count" 1 90 0.5
   last_xfm="`ls -1 "$wdir/out_${count}.mat" 2>/dev/null`" || true
   outbase="`$FSLDIR/bin/remove_ext "$infile"`"
@@ -347,11 +385,23 @@ for infile in "$@"; do
   if [ "$md_apply2orig" = 1 ] || [ "$md_apply" = 1 ]; then
     $FSLDIR/bin/fslmaths "$infile" -mul "$wdir/out_${count}_defacemask" "$wdir/out_${count}_defaced" -odt input
     if [ "$md_apply2orig" = 1 ]; then
-        outsuffix=''
+      outsuffix=''
     else
-        outsuffix='_defaced'
+      outsuffix='_defaced'
     fi
+
+    if [ $md_apply = 1 ] && [ $md_keep_orig = 1 ]; then
+      orig_fname=$(echo $infile | sed -e 's,\.nii.*,_orig,g')
+      $FSLDIR/bin/immv "$infile" "${orig_fname}"
+      [ $under_annex = 0 ] || (
+        cd "$infile_dir"; git add $(/bin/ls $(basename ${orig_fname})*);
+      )
+    fi
+
     $FSLDIR/bin/immv "$wdir/out_${count}_defaced" "${outbase}${outsuffix}";
+    [ $under_annex = 0 ] || (
+      cd "$infile_dir"; git annex add $(/bin/ls $(basename ${outbase}${outsuffix})*);
+    )
   fi
   count=$((count + 1))
 done
