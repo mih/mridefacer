@@ -1,4 +1,6 @@
 #!/bin/bash
+# emacs: -*- mode: shell-script; indent-tabs-mode: nil -*-
+# vi: set ft=sh sts=2 ts=2 sw=2 et:
 
 # play save
 set -e
@@ -11,7 +13,7 @@ mridefacer_version=0.2.1
 ############
 
 # where is the de-face mask and template
-md_datadir=${MRIDEFACER_DATA_DIR:-"$(dirname $0)/../share/mridefacer"}
+md_datadir=${MRIDEFACER_DATA_DIR:-}
 # produce fancy colored output
 md_color_output=1
 # enables additional status message if set to true
@@ -183,10 +185,36 @@ else
   NC='' #no color
 fi
 
-[ -z "$FSLDIR" ] && printf "${Red}FSLDIR environment variable not set${NC}\n" && exit 1
+_fsl_env="/etc/fsl/fsl.sh"
+
+if [ -z "${FSLDIR:-}" ]; then
+  if [ -e "$_fsl_env" ]; then
+    printf "${Green}FSLDIR environment variable not set. Sourcing present $_fsl_env${NC}\n"
+    source "$_fsl_env"
+  else
+    printf "${Red}FSLDIR environment variable not set${NC}\n" && exit 1
+  fi
+fi
 
 # play safer
 set -u
+
+# Try both in-source and "as installed" settings
+if [ -z "$md_datadir" ]; then
+  exe_dir="$(dirname $0)"
+  tried=
+  for cand in data ../share/mridefacer; do
+    cand_dir="$exe_dir/$cand"
+	tried+=" '$cand_dir'"
+    if [ -e "$cand_dir/face_teeth_ear_mask.nii.gz" ] && [ -e "$cand_dir/head_tmpl_brain.nii.gz" ]; then
+      md_datadir="$cand_dir"
+      break
+	fi
+  done
+  if [ -z "$md_datadir" ]; then
+    printf "${Red}Could not determined directory with mridefacer data. Tried: $tried${NC}\n" && exit 1
+  fi
+fi
 
 if [ $# -lt 1 ]; then
   printf "${Red}Error: This command needs at least one positional argument.\n${NC}"
