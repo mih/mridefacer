@@ -399,15 +399,11 @@ for infile in "$@"; do
     if [ $md_apply = 1 ] && [ $md_keep_orig = 1 ]; then
       orig_fname=$(echo $infile | sed -e 's,\.nii.*,_orig,g')
       $FSLDIR/bin/immv "$infile" "${orig_fname}"
-      [ $under_annex = 0 ] || (
-        cd "$infile_dir"; git add $(/bin/ls $(basename ${orig_fname})*);
-      )
+      [ $under_annex = 0 ] || git -C "$infile_dir" add $(/bin/ls $(basename ${orig_fname})*);
     fi
 
     $FSLDIR/bin/immv "$wdir/out_${count}_defaced" "${outbase}${outsuffix}";
-    [ $under_annex = 0 ] || (
-      cd "$infile_dir"; git annex add $(/bin/ls $(basename ${outbase}${outsuffix})*);
-    )
+    [ $under_annex = 0 ] || git -C "$infile_dir" annex add $(/bin/ls $(basename ${outbase}${outsuffix})*);
   fi
   count=$((count + 1))
 done
