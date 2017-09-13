@@ -379,6 +379,11 @@ for infile in "$@"; do
   if [ ! -z "$md_outdir" ]; then
       outbase="$md_outdir/`basename "$outbase"`"
   fi
+  # Since we are producing new defacemask, no sidecar file, even if there is one
+  # should survive anyways, so first we remove anything in the target path.
+  # Needed in case of git-annex'ed files and avoids unlocking and hopefully
+  # prevents content mutation which we have managed to cause once
+  rm -f "$outbase"_defacemask.*
   $FSLDIR/bin/imcp "$wdir/out_${count}_defacemask" "$outbase"_defacemask
   # make explicit test for success, as imcp doesn't
   [ "`$FSLDIR/bin/imtest "$outbase"_defacemask`" = "1" ]
