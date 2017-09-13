@@ -351,6 +351,7 @@ count=0
 last_xfm=''
 for infile in "$@"; do
   infile_dir=$(dirname "$infile")
+  infile_name=$(basename "$infile")
   under_annex=0
   if [ "$md_annex" = 1 ]; then
     ( cd "$infile_dir" && git annex info --fast; )  >/dev/null 2>&1 && under_annex=1 || {
@@ -360,10 +361,10 @@ for infile in "$@"; do
 
   [ $under_annex = 0 ] || (
     cd "$infile_dir"
-    if git annex info --fast "$(basename $infile)" >/dev/null 2>&1; then
-      existing_restrictions=`git annex metadata -g distribution-restrictions "$(basename $infile)"`
+    if git annex info --fast "$infile_name" >/dev/null 2>&1; then
+      existing_restrictions=`git annex metadata -g distribution-restrictions "$infile_name"`
       if [ -z "$existing_restrictions" ]; then
-        git annex metadata -s distribution-restrictions=sensitive "$infile" >/dev/null
+        git annex metadata -s distribution-restrictions=sensitive "$infile_name" >/dev/null
       else
         printf "${yellow}File $infile already has restrictions set to '$existing_restrictions'. Not adding new${NC}\n"
       fi
