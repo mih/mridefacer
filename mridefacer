@@ -4,6 +4,7 @@
 
 # play save
 set -e
+PS4='+ $LINENO: '
 
 # version of this script
 mridefacer_version=0.2.2
@@ -20,6 +21,7 @@ md_color_output=1
 md_verbose=0
 # output directory, use same as input when empty
 md_outdir=''
+# TODO: clarify those params... confusing!
 # flag whether to output directory, use same as input when empty
 md_apply2orig=0
 # flag whether to keep original file if --apply
@@ -384,9 +386,37 @@ for infile in "$@"; do
   # Needed in case of git-annex'ed files and avoids unlocking and hopefully
   # prevents content mutation which we have managed to cause once
   rm -f "$outbase"_defacemask.*
-  $FSLDIR/bin/imcp "$wdir/out_${count}_defacemask" "$outbase"_defacemask
+  deface_fname="$outbase"_defacemask
+  deface_dir=$(dirname "$deface_fname")
+
+  $FSLDIR/bin/imcp "$wdir/out_${count}_defacemask" "$deface_fname"
   # make explicit test for success, as imcp doesn't
   [ "`$FSLDIR/bin/imtest "$outbase"_defacemask`" = "1" ]
+
+  function add_to_annex() {
+    for fname in "$@"; do
+      d=$(dirname "$fname")
+      f=$(basename "$fname")
+      added=
+      if [ ! $under_annex = 0 ]; then
+       ( 
+       cd "$d"; 
+       if [ -e $f ]; then
+          git annex add $f; 
+          added+=1
+       fi
+       if /bin/ls $f.* | grep -q; then
+          git annex add $f.*
+          added+=1
+       fi 
+       if [ -z "$added" ]; then
+          echo "No files were found for $fname" >&2
+          exit 1
+       fi
+       );
+      fi
+    done
+  }
 
   if [ "$md_apply2orig" = 1 ] || [ "$md_apply" = 1 ]; then
     $FSLDIR/bin/fslmaths "$infile" -mul "$wdir/out_${count}_defacemask" "$wdir/out_${count}_defaced" -odt input
@@ -399,12 +429,15 @@ for infile in "$@"; do
     if [ $md_apply = 1 ] && [ $md_keep_orig = 1 ]; then
       orig_fname=$(echo $infile | sed -e 's,\.nii.*,_orig,g')
       $FSLDIR/bin/immv "$infile" "${orig_fname}"
-      [ $under_annex = 0 ] || git -C "$infile_dir" add $(/bin/ls $(basename ${orig_fname})*);
+      add_to_annex "${orig_fname}"
+    else
+      add_to_annex "${infile}"
     fi
 
     $FSLDIR/bin/immv "$wdir/out_${count}_defaced" "${outbase}${outsuffix}";
-    [ $under_annex = 0 ] || git -C "$infile_dir" annex add $(/bin/ls $(basename ${outbase}${outsuffix})*);
+    add_to_annex "${outbase}${outsuffix}*"
   fi
+  add_to_annex "${deface_fname}"
   count=$((count + 1))
 done
 
