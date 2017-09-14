@@ -30,6 +30,10 @@ md_keep_orig=0
 md_apply=1
 # flag either to do 'annex' treatment of the original and produced files
 md_annex=0
+# init next xfm with the result of the preceding one.
+# not advised to guarantee reproducibility across independent runs
+# (i.e. per file vs per group of files)
+md_use_prev_xfm=0
 
 
 print_version()
@@ -38,6 +42,7 @@ cat << EOT
 mridefacer $mridefacer_version
 
 Copyright (C) 2013-2016 Michael Hanke <michael.hanke@gmail.com>
+              2017      Yaroslav Halchenko <debian@onerussian.com>
 
 Release under the MIT License.
 
@@ -101,6 +106,12 @@ Options:
     distribution-restrictions=sensitive (datalad convention)
   to make it easy to automate non-redistribution of these materials.
 
+--use-prev-xfm
+  If multiple files are provided, alignmet for the next file will
+  be initialized with the result for the previous file.  Not advised
+  if you want to achieve reproducible results independent of the order
+  of the files
+
 -h, --help
   Print short description, usage summary and option list.
 
@@ -155,7 +166,7 @@ EOT
 # Note that we use `"$@"' to let each command-line parameter expand to a
 # separate word. The quotes around `$@' are essential!
 # We need CLOPTS as the `eval set --' would nuke the return value of getopt.
-CLOPTS=`getopt -o h --long help,verbose-help,version,no-color,verbose,outdir:,apply,apply-only,keep-orig,annex -n 'mridefacer' -- "$@"`
+CLOPTS=`getopt -o h --long help,verbose-help,version,no-color,verbose,outdir:,apply,apply-only,keep-orig,annex,use-prev-xfm -n 'mridefacer' -- "$@"`
 
 if [ $? != 0 ] ; then
   echo "Terminating..." >&2
@@ -173,6 +184,7 @@ while true ; do
 	  --apply) md_apply2orig=1; shift;;
 	  --apply-only) md_apply=1; shift;;
 	  --keep-orig) md_keep_orig=1; shift;;
+	  --use-prev-xfm) md_use_prev_xfm=1; shift;;
 	  -h|--help) print_short_description; print_help; exit 0;;
 	  --verbose-help) print_short_description; print_help; print_additional_description; exit 0;;
 	  --version) print_version; exit 0;;
@@ -352,6 +364,7 @@ trap "rm -rf $wdir" EXIT
 count=0
 last_xfm=''
 for infile in "$@"; do
+  [ "$md_use_prev_xfm" = 1 ] || last_xfm=''
   infile_dir=$(dirname "$infile")
   infile_name=$(basename "$infile")
   under_annex=0
@@ -399,16 +412,16 @@ for infile in "$@"; do
       f=$(basename "$fname")
       added=
       if [ ! $under_annex = 0 ]; then
-       ( 
-       cd "$d"; 
-       if [ -e $f ]; then
-          git annex add $f; 
+       (
+       cd "$d";
+       if [ -e "$f" ]; then
+          git annex add "$f";
           added+=1
        fi
-       if /bin/ls $f.* | grep -q; then
-          git annex add $f.*
+       if /bin/ls "$f".* 2>/dev/null | grep -q . ; then
+          git annex add "$f".*
           added+=1
-       fi 
+       fi
        if [ -z "$added" ]; then
           echo "No files were found for $fname" >&2
           exit 1
@@ -435,7 +448,7 @@ for infile in "$@"; do
     fi
 
     $FSLDIR/bin/immv "$wdir/out_${count}_defaced" "${outbase}${outsuffix}";
-    add_to_annex "${outbase}${outsuffix}*"
+    add_to_annex "${outbase}${outsuffix}"
   fi
   add_to_annex "${deface_fname}"
   count=$((count + 1))
